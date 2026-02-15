@@ -1,0 +1,52 @@
+#!/bin/sh
+# PROVIDE: cloudtop_agent
+# REQUIRE: NETWORK
+# KEYWORD: nojail
+#
+# Add to rc.conf (or rc.conf.local / OPNsense override):
+#   cloudtop_agent_enable="YES"
+#   cloudtop_agent_server_name="opnsense"
+#   cloudtop_agent_dashboard_url="https://cloudtop.biapps.dev/api/report"
+#   cloudtop_agent_interval_sec="60"
+# Optional: cloudtop_agent_dir="/var/www/html/cloudtop"
+# Optional: cloudtop_agent_python="/usr/local/bin/python3"
+# Optional auth: cloudtop_agent_user="admin" cloudtop_agent_pass="secret"
+
+. /etc/rc.subr
+
+name="cloudtop_agent"
+rcvar="${name}_enable"
+pidfile="/var/run/${name}.pid"
+
+# Defaults (override in rc.conf)
+cloudtop_agent_dir="${cloudtop_agent_dir:-/var/www/html/cloudtop}"
+cloudtop_agent_python="${cloudtop_agent_python:-/usr/local/bin/python3}"
+cloudtop_agent_server_name="${cloudtop_agent_server_name:-$(hostname)}"
+cloudtop_agent_dashboard_url="${cloudtop_agent_dashboard_url:-http://127.0.0.1:3000/api/report}"
+cloudtop_agent_interval_sec="${cloudtop_agent_interval_sec:-60}"
+
+load_rc_config $name
+
+# Build env string for env(1); user can override with cloudtop_agent_env
+if [ -z "$cloudtop_agent_env" ]; then
+    cloudtop_agent_env="SERVER_NAME=${cloudtop_agent_server_name} DASHBOARD_URL=${cloudtop_agent_dashboard_url} INTERVAL_SEC=${cloudtop_agent_interval_sec}"
+    [ -n "$cloudtop_agent_user" ] && cloudtop_agent_env="${cloudtop_agent_env} DASHBOARD_USER=${cloudtop_agent_user}"
+    [ -n "$cloudtop_agent_pass" ] && cloudtop_agent_env="${cloudtop_agent_env} DASHBOARD_PASS=${cloudtop_agent_pass}"
+fi
+
+start_precmd="cloudtop_agent_preflight"
+cloudtop_agent_preflight() {
+    if [ ! -x "${cloudtop_agent_python}" ]; then
+        echo "ERROR: ${cloudtop_agent_python} not found or not executable" >&2
+        exit 1
+    fi
+    if [ ! -f "${cloudtop_agent_dir}/agent.py" ]; then
+        echo "ERROR: ${cloudtop_agent_dir}/agent.py not found" >&2
+        exit 1
+    fi
+}
+
+# Run in foreground; daemon backgrounds it and writes pid. env passes vars to python.
+start_cmd="daemon -p ${pidfile} /usr/bin/env ${cloudtop_agent_env} ${cloudtop_agent_python} ${cloudtop_agent_dir}/agent.py"
+
+run_rc_command "$1"

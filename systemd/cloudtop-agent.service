@@ -1,0 +1,23 @@
+[Unit]
+Description=Cloudtop monitoring agent (reports to central dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/html/cloudtop
+ExecStart=/usr/bin/node agent.js
+Restart=on-failure
+RestartSec=30
+# Required: name shown on dashboard (defaults to hostname if unset)
+Environment=SERVER_NAME=%H
+# Required: URL of the central dashboard report endpoint
+Environment=DASHBOARD_URL=http://127.0.0.1:3000/api/report
+# Report every 60 seconds (0 = run once and exit)
+Environment=INTERVAL_SEC=60
+# Optional: if dashboard uses basic auth
+# Environment=DASHBOARD_USER=admin
+# Environment=DASHBOARD_PASS=your-password
+
+[Install]
+WantedBy=multi-user.target

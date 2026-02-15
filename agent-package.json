@@ -1,0 +1,9 @@
+{
+  "name": "cloudtop-agent",
+  "version": "1.0.0",
+  "description": "Cloudtop agent – reports system stats to central dashboard",
+  "main": "agent.js",
+  "dependencies": {
+    "systeminformation": "^5.23.0"
+  }
+}

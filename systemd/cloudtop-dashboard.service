@@ -1,0 +1,20 @@
+[Unit]
+Description=Cloudtop monitoring dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/html/cloudtop
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+# Optional: uncomment and set for this host to appear in the grid
+# Environment=LOCAL_SERVER_NAME=cloudtop
+# Optional: basic auth for the dashboard
+# Environment=MONITOR_USER=admin
+# Environment=MONITOR_PASS=your-password
+# Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target

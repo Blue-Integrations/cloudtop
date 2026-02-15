@@ -1,0 +1,17 @@
+{
+  "name": "cloudtop-monitor",
+  "version": "1.0.0",
+  "description": "Server monitoring dashboard for cloudtop.biapps.dev",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "systeminformation": "^5.23.0"
+  }
+}

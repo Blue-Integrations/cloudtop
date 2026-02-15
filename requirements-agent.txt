@@ -1,0 +1,2 @@
+# Python agent (FreeBSD / Linux) – install with: pip install -r requirements-agent.txt
+psutil>=5.9.0
