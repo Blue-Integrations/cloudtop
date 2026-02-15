@@ -17,6 +17,7 @@ Run via cron on FreeBSD: add to crontab or use /usr/local/etc/rc.d/
 
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -28,6 +29,43 @@ try:
 except ImportError:
     print("psutil required. Install with: pip install psutil", file=sys.stderr)
     sys.exit(1)
+
+IS_FREEBSD = sys.platform.startswith("freebsd")
+
+
+def _cpu_percent_freebsd():
+    """CPU usage on FreeBSD via kern.cp_time (avoids psutil bugs). Two samples, delta, then (total-idle)/total*100."""
+    try:
+        out1 = subprocess.run(
+            ["sysctl", "-n", "kern.cp_time"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if out1.returncode != 0 or not out1.stdout:
+            return None
+        time.sleep(0.25)
+        out2 = subprocess.run(
+            ["sysctl", "-n", "kern.cp_time"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if out2.returncode != 0 or not out2.stdout:
+            return None
+        # Format: "user nice sys interrupt idle" (clock ticks)
+        nums1 = [int(x) for x in out1.stdout.strip().split()]
+        nums2 = [int(x) for x in out2.stdout.strip().split()]
+        if len(nums1) != 5 or len(nums2) != 5:
+            return None
+        total = sum(nums2[i] - nums1[i] for i in range(5))
+        if total <= 0:
+            return 0.0
+        idle_delta = nums2[4] - nums1[4]  # idle is 5th (index 4)
+        used = total - idle_delta
+        return min(100.0, max(0.0, 100.0 * used / total))
+    except (subprocess.TimeoutExpired, ValueError, FileNotFoundError, OSError):
+        return None
 
 
 DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "http://127.0.0.1:3000/api/report")
@@ -86,13 +124,17 @@ def get_stats():
     rx_sec = max(0, net_after.bytes_recv - net_before.bytes_recv)
     tx_sec = max(0, net_after.bytes_sent - net_before.bytes_sent)
 
-    # CPU: measure after other work so our script's activity isn't in the window.
-    # Use per-CPU average and cap at 100% (FreeBSD sometimes reports >100 or wrong aggregate).
-    try:
-        per_cpu = psutil.cpu_percent(interval=0.3, percpu=True)
-        cpu_percent = min(100.0, sum(per_cpu) / len(per_cpu)) if per_cpu else 0.0
-    except Exception:
-        cpu_percent = 0.0
+    # CPU: on FreeBSD use kern.cp_time (psutil often reports 100% or hangs). On Linux use psutil.
+    if IS_FREEBSD:
+        cpu_percent = _cpu_percent_freebsd()
+        if cpu_percent is None:
+            cpu_percent = 0.0
+    else:
+        try:
+            per_cpu = psutil.cpu_percent(interval=0.3, percpu=True)
+            cpu_percent = min(100.0, sum(per_cpu) / len(per_cpu)) if per_cpu else 0.0
+        except Exception:
+            cpu_percent = 0.0
 
     return {
         "name": SERVER_NAME,

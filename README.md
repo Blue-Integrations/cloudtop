@@ -49,6 +49,62 @@ If the dashboard uses basic auth, set `DASHBOARD_USER` and `DASHBOARD_PASS` when
 2. **Optional basic auth** – Set `MONITOR_USER` and `MONITOR_PASS` to protect the UI; use `DASHBOARD_USER` / `DASHBOARD_PASS` on agents.
 3. **Process manager** – Run the dashboard under PM2 or systemd. Run the agent on each host via cron or PM2.
 
+### Nginx reverse proxy
+
+1. **Install Nginx** (if needed) and create a server block, e.g. `/etc/nginx/sites-available/cloudtop` or under `conf.d/`:
+
+```nginx
+server {
+    listen 80;
+    server_name cloudtop.biapps.dev;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+2. **Enable the site** and reload Nginx:
+
+```bash
+# Debian/Ubuntu
+sudo ln -s /etc/nginx/sites-available/cloudtop /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# Or copy to conf.d and reload
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **HTTPS with Let’s Encrypt** (Certbot):
+
+```bash
+sudo apt install certbot python3-certbot-nginx   # or: certbot --nginx
+sudo certbot --nginx -d cloudtop.biapps.dev
+```
+
+Certbot will add a `listen 443 ssl` server block and redirect HTTP→HTTPS. Ensure DNS for `cloudtop.biapps.dev` points to this host before running certbot.
+
+4. **Optional: basic auth at Nginx** (instead of in the Node app):
+
+```bash
+sudo apt install apache2-utils
+sudo htpasswd -c /etc/nginx/.htpasswd-cloudtop admin
+```
+
+Add to the `location /` block (inside the `server` that has `listen 443 ssl`):
+
+```nginx
+    auth_basic "Cloudtop Monitor";
+    auth_basic_user_file /etc/nginx/.htpasswd-cloudtop;
+```
+
+Then reload Nginx. Agents must use the same credentials in `DASHBOARD_USER` and `DASHBOARD_PASS`.
+
 ## Environment variables
 
 **Dashboard (server.js):**
