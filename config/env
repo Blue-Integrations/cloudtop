@@ -1,0 +1,12 @@
+# Copy to config/env or config/snmp.env (or /etc/cloudtop-monitor/env)
+# and edit. Only unset env vars are applied; existing env wins.
+#
+#SNMP_TARGETS=81MEADOW-GW:192.168.88.1:161:c4cti:2,OPNSENSE-GW:172.16.10.1:161:c4ct1:2
+SNMP_TARGETS=81MEADOW-GW:192.168.88.1:161:c4cti:2,OPNSENSE-GW:opnsense.ovh-vir.isptriage.com:161:c4ct1:2
+
+# Or with names: router1:192.168.88.1:161:c4cti:2,router2:172.16.10.1:161:c4ct1:1
+#
+# LOCAL_SERVER_NAME=cloudtop
+# MONITOR_USER=admin
+# MONITOR_PASS=your-password
+# PORT=3000

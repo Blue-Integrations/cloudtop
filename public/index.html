@@ -142,6 +142,51 @@
       color: var(--muted);
       text-align: center;
     }
+    .snmp-section { margin-bottom: 1rem; }
+    .snmp-section h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 0 0 0.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .snmp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 0.75rem;
+    }
+    .snmp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    .snmp-card.stale { opacity: 0.75; border-color: var(--warn); }
+    .snmp-card .snmp-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .snmp-card .snmp-meta { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .snmp-graph {
+      width: 100%;
+      height: 56px;
+      background: #1c2128;
+      border-radius: 4px;
+      margin-top: 0.35rem;
+      display: block;
+    }
+    .snmp-card .snmp-rate { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
+    .snmp-legend { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; }
+    .snmp-legend .in { color: #58a6ff; }
+    .snmp-legend .out { color: #3fb950; }
+    .snmp-debug { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; font-family: 'JetBrains Mono', monospace; }
   </style>
 </head>
 <body>
@@ -151,6 +196,10 @@
       <span class="last-update" id="lastUpdate">—</span>
     </header>
     <div id="error" class="error" style="display: none;"></div>
+    <div id="snmpSection" class="snmp-section" style="display: none;">
+      <h2>SNMP devices <a href="/api/snmp-debug" target="_blank" rel="noopener" style="font-size:0.7rem;color:var(--muted);margin-left:0.5rem;">(debug output)</a></h2>
+      <div class="snmp-grid" id="snmpGrid"></div>
+    </div>
     <div class="grid" id="grid"></div>
     <footer>Refreshes every 15s</footer>
   </div>
@@ -234,6 +283,67 @@
       div.textContent = s;
       return div.innerHTML;
     }
+    function snmpSparkline(historyIn, historyOut, w, h) {
+      const pad = 6;
+      const strokeIn = '#58a6ff';
+      const strokeOut = '#3fb950';
+      function toPoints(arr) {
+        if (!arr || arr.length === 0) return '';
+        const vals = arr.map(function(p) { return p.v; });
+        const minV = Math.min.apply(null, vals);
+        const maxV = Math.max.apply(null, vals);
+        const range = maxV - minV || 1;
+        const n = arr.length;
+        const toY = function(v) { return h - pad - ((v - minV) / range) * (h - 2 * pad); };
+        if (n === 1) return pad + ',' + toY(arr[0].v) + ' ' + (w - pad) + ',' + toY(arr[0].v);
+        const xScale = (w - 2 * pad) / (n - 1);
+        return arr.map(function(p, i) { return (pad + i * xScale) + ',' + toY(p.v); }).join(' ');
+      }
+      const ptsIn = toPoints(historyIn);
+      const ptsOut = toPoints(historyOut);
+      var body = '';
+      if (ptsIn) body += '<polyline fill="none" stroke="' + strokeIn + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="' + ptsIn + '"/>';
+      if (ptsOut) body += '<polyline fill="none" stroke="' + strokeOut + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6,4" points="' + ptsOut + '"/>';
+      if (!body) body = '<line x1="' + pad + '" y1="' + (h/2) + '" x2="' + (w-pad) + '" y2="' + (h/2) + '" stroke="#8b949e" stroke-width="2"/>';
+      return '<svg class="snmp-graph" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' + body + '</svg>';
+    }
+    function renderSnmp(devices) {
+      const section = document.getElementById('snmpSection');
+      const g = document.getElementById('snmpGrid');
+      if (!devices || !devices.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      g.innerHTML = devices.map((d) => {
+        const dot = d.stale ? 'danger' : (d.up ? 'ok' : 'warn');
+        const uptimeStr = d.sysUpTime != null ? fmt.uptime(d.sysUpTime) : '—';
+        const inK = (d.inRate || 0) / 1024;
+        const outK = (d.outRate || 0) / 1024;
+        const hi = d.historyIn || [];
+        const ho = d.historyOut || [];
+        const graph = snmpSparkline(hi, ho, 280, 56);
+        const lastIn = hi.length ? hi[hi.length - 1].v : null;
+        const lastOut = ho.length ? ho[ho.length - 1].v : null;
+        const debugStr = 'Points: ' + hi.length + ' in, ' + ho.length + ' out' +
+          (lastIn != null ? ' · last ↓' + lastIn : '') +
+          (lastOut != null ? ' ↑' + lastOut : '');
+        return '<div class="snmp-card ' + (d.stale ? 'stale' : '') + '" title="' + escapeHtml(d.host + ':' + d.port) + '">' +
+          '<div class="snmp-title"><span class="dot ' + dot + '"></span>' + escapeHtml(d.name) + '</div>' +
+          '<div class="snmp-meta">' + escapeHtml(d.host) + ' · Up ' + uptimeStr + '</div>' +
+          graph +
+          '<div class="snmp-legend"><span class="in">↓ In</span> <span class="out">↑ Out (dashed)</span></div>' +
+          '<div class="snmp-debug">' + escapeHtml(debugStr) + '</div>' +
+          '<div class="snmp-rate">↓ ' + inK.toFixed(2) + ' KB/s · ↑ ' + outK.toFixed(2) + ' KB/s</div>' +
+          '</div>';
+      }).join('');
+    }
+    async function fetchSnmpDevices() {
+      try {
+        const r = await fetch('/api/snmp-devices');
+        if (r.ok) {
+          const data = await r.json();
+          renderSnmp(data.devices || []);
+        }
+      } catch (_) {}
+    }
     async function fetchServers() {
       const errEl = document.getElementById('error');
       try {
@@ -251,7 +361,9 @@
       }
     }
     fetchServers();
+    fetchSnmpDevices();
     setInterval(fetchServers, 15000);
+    setInterval(fetchSnmpDevices, 15000);
   </script>
 </body>
 </html>

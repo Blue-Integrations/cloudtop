@@ -115,6 +115,50 @@ Then reload Nginx. Agents must use the same credentials in `DASHBOARD_USER` and 
 | `MONITOR_USER`       | Basic auth username (optional)                   |
 | `MONITOR_PASS`       | Basic auth password (optional)                   |
 | `LOCAL_SERVER_NAME`  | If set, this host’s stats are pushed into the grid |
+| `SNMP_TARGETS`       | Optional SNMP devices. Format: `name:host:port:community` or `name:host:port:community:ifindex`. Comma-separated. Default interface index is 1 (first). Use `ifindex` for WAN/first Ethernet if your device uses a different index (e.g. `router1:192.168.88.1:161:c4ct1:1`). To find indices: `snmpwalk -v2c -c c4ct1 192.168.88.1 1.3.6.1.2.1.2.2.1.2` (ifDescr) or `1.3.6.1.2.1.31.1.1.1.1` (ifName). Requires `snmpget` (install `snmp` or `net-snmp`). |
+
+**SNMP traffic OIDs (what we poll for the graph)**  
+We use standard interface octet counters; the graph shows bytes per second from the **difference** between two polls (every 60s). OIDs (append `.<ifIndex>` for your interface, e.g. `.2` for ether1-Internet):
+
+| What        | OID (base) | Full example (ifIndex 2) |
+|------------|------------|---------------------------|
+| Bytes in   | 1.3.6.1.2.1.31.1.1.1.6  (ifHCInOctets, 64-bit) or 1.3.6.1.2.1.2.2.1.10 (ifInOctets, 32-bit) | .6.2 or .10.2 |
+| Bytes out  | 1.3.6.1.2.1.31.1.1.1.10 (ifHCOutOctets) or 1.3.6.1.2.1.2.2.1.16 (ifOutOctets) | .10.2 or .16.2 |
+| Interfaces | 1.3.6.1.2.1.2.2.1.2 (ifDescr – names) | walk to see all |
+
+We try 64-bit first, then 32-bit. The value must **increment** between polls for the graph to show traffic; if it doesn’t change, rate is 0. Check with:  
+`snmpget -v2c -c COMM 192.168.88.1 1.3.6.1.2.1.31.1.1.1.6.2` then again a minute later – the number should increase.
+
+**SNMP debugging (no graphing / wrong interface)**  
+Run these **on the same host as the dashboard** (it must be able to reach the device):
+
+- **Walk interfaces** (see indices and names):  
+  `./scripts/snmp-walk.sh 192.168.88.1 c4ct1 1.3.6.1.2.1.2.2.1`  
+  Or in the browser (target must be in `SNMP_TARGETS`):  
+  `https://cloudtop.biapps.dev/api/snmp-walk?name=81MEADOW-GW&oid=1.3.6.1.2.1.2.2.1`
+- **Test the OIDs we use** (sysUpTime, ifInOctets, ifOutOctets):  
+  `https://cloudtop.biapps.dev/api/snmp-get?name=81MEADOW-GW`  
+  If you see `FAIL` or `ERROR`, the device may use different OIDs or the dashboard host cannot reach the device. Fix interface index in `SNMP_TARGETS` (5th field) from the walk output.
+
+**Where to put config without editing the systemd file**
+
+The dashboard loads environment variables from a **config file** on startup (so you don’t have to put `SNMP_TARGETS` or other secrets in the unit file). It checks, in order:
+
+1. **`/var/www/html/cloudtop/config/env`** (or `config/env` next to `server.js`)
+2. **`/var/www/html/cloudtop/config/snmp.env`**
+3. **`/etc/cloudtop-monitor/env`**
+
+Create one of these files with `KEY=value` lines (comments with `#` allowed). Only variables that are **not** already set in the environment are applied. Example:
+
+```bash
+# /var/www/html/cloudtop/config/env  or  /etc/cloudtop-monitor/env
+SNMP_TARGETS=192.168.88.1:161:c4ct1,172.16.10.1:161:c4ct1
+# LOCAL_SERVER_NAME=cloudtop
+# MONITOR_USER=admin
+# MONITOR_PASS=your-password
+```
+
+Then restart the dashboard. No need to add `EnvironmentFile` to the systemd unit unless you prefer to keep the config only in `/etc/cloudtop-monitor/env` and point the unit at it with one line: `EnvironmentFile=-/etc/cloudtop-monitor/env`.
 
 **Agent (agent.js / agent.py):**
 
@@ -132,6 +176,7 @@ The Python agent (`agent.py`) uses **psutil** and works on FreeBSD and Linux. In
 
 - **POST /api/report** – Body: `{ name, cpu, memory, disk, load, uptime, network, timestamp }` (same shape as GET /api/stats plus `name`). Stores latest report per name.
 - **GET /api/servers** – Returns `{ servers: [ { name, lastSeen, stale, stats }, ... ] }` for the dashboard.
+- **GET /api/snmp-devices** – Returns `{ devices: [ { name, host, port, up, sysUpTime, historyIn, historyOut, inRate, outRate, stale }, ... ] }` when `SNMP_TARGETS` is set. Used for the SNMP graph section on the dashboard.
 - **GET /api/stats** – Single-host stats (same shape as report body minus `name`); used by the agent or for debugging.
 - **GET /api/health** – `{ "ok": true, "time": "..." }` for health checks.
 
