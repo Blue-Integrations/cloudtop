@@ -115,7 +115,7 @@ Then reload Nginx. Agents must use the same credentials in `DASHBOARD_USER` and 
 | `MONITOR_USER`       | Basic auth username (optional)                   |
 | `MONITOR_PASS`       | Basic auth password (optional)                   |
 | `LOCAL_SERVER_NAME`  | If set, this host’s stats are pushed into the grid |
-| `SNMP_TARGETS`       | Optional SNMP devices. Format: `name:host:port:community` or `name:host:port:community:ifindex`. Comma-separated. Default interface index is 1 (first). Use `ifindex` for WAN/first Ethernet if your device uses a different index (e.g. `router1:192.168.88.1:161:c4ct1:1`). To find indices: `snmpwalk -v2c -c c4ct1 192.168.88.1 1.3.6.1.2.1.2.2.1.2` (ifDescr) or `1.3.6.1.2.1.31.1.1.1.1` (ifName). Requires `snmpget` (install `snmp` or `net-snmp`). |
+| `SNMP_TARGETS`       | Optional SNMP devices. Format: `name:host:port:community` or `name:host:port:community:ifindex` or `...:ifindex:use32`. Comma-separated. Default interface index is 1. Use `ifindex` for WAN (e.g. `:2` for second interface). Add `:use32` to prefer 32-bit counters (e.g. FreeBSD/OPNsense when 64-bit counters stay unchanged). Find indices: `snmpwalk -v2c -c c4ct1 192.168.88.1 1.3.6.1.2.1.2.2.1.2`. Requires `snmpget` (install `snmp` or `net-snmp`). |
 
 **SNMP traffic OIDs (what we poll for the graph)**  
 We use standard interface octet counters; the graph shows bytes per second from the **difference** between two polls (every 60s). OIDs (append `.<ifIndex>` for your interface, e.g. `.2` for ether1-Internet):
@@ -135,9 +135,9 @@ Run these **on the same host as the dashboard** (it must be able to reach the de
 - **Walk interfaces** (see indices and names):  
   `./scripts/snmp-walk.sh 192.168.88.1 c4ct1 1.3.6.1.2.1.2.2.1`  
   Or in the browser (target must be in `SNMP_TARGETS`):  
-  `https://cloudtop.biapps.dev/api/snmp-walk?name=81MEADOW-GW&oid=1.3.6.1.2.1.2.2.1`
+  `https://cloudtop.biapps.dev/api/snmp-walk?name=Frontier&oid=1.3.6.1.2.1.2.2.1`
 - **Test the OIDs we use** (sysUpTime, ifInOctets, ifOutOctets):  
-  `https://cloudtop.biapps.dev/api/snmp-get?name=81MEADOW-GW`  
+  `https://cloudtop.biapps.dev/api/snmp-get?name=Frontier`  
   If you see `FAIL` or `ERROR`, the device may use different OIDs or the dashboard host cannot reach the device. Fix interface index in `SNMP_TARGETS` (5th field) from the walk output.
 
 **Where to put config without editing the systemd file**

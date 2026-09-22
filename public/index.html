@@ -3,211 +3,523 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cloudtop · Server Monitor</title>
+  <meta name="theme-color" content="#090b10">
+  <title>Cloudtop · Fleet Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2322d3ee' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%234ade80'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #58a6ff;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --danger: #f85149;
+      --bg: #090b10;
+      --bg-2: #0e121a;
+      --surface: rgba(18, 22, 32, 0.78);
+      --surface-solid: #141824;
+      --border: rgba(255, 255, 255, 0.07);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --text: #f1f5f9;
+      --muted: #8b93a7;
+      --faint: #5c6478;
+      --accent: #22d3ee;
+      --accent-dim: rgba(34, 211, 238, 0.14);
+      --ok: #4ade80;
+      --ok-dim: rgba(74, 222, 128, 0.16);
+      --warn: #fbbf24;
+      --warn-dim: rgba(251, 191, 36, 0.16);
+      --danger: #fb7185;
+      --danger-dim: rgba(251, 113, 133, 0.16);
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --radius: 18px;
     }
     * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
     body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
+      background:
+        radial-gradient(1200px 600px at 8% -10%, rgba(34, 211, 238, 0.08), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(99, 102, 241, 0.1), transparent 50%),
+        radial-gradient(700px 400px at 50% 120%, rgba(74, 222, 128, 0.05), transparent 45%),
+        var(--bg);
       color: var(--text);
-      font-family: 'Outfit', sans-serif;
-      font-size: 12px;
-      line-height: 1.3;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      letter-spacing: -0.01em;
     }
-    .container {
-      max-width: 1400px;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    }
+    .wrap {
+      position: relative;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 0.75rem;
+      padding: 1.5rem 1.25rem 2.5rem;
     }
-    header {
+    header.top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.35rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(160deg, var(--accent-dim), rgba(99,102,241,0.16));
+      border: 1px solid var(--border-strong);
+      color: var(--accent);
+    }
+    .logo svg { width: 22px; height: 22px; }
+    .brand h1 {
+      margin: 0;
+      font-size: 1.28rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .brand p {
+      margin: 0.1rem 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.28rem 0.7rem;
+      border-radius: 999px;
+      background: var(--ok-dim);
+      color: var(--ok);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .live-pill.warn { background: var(--warn-dim); color: var(--warn); }
+    .live-pill.danger { background: var(--danger-dim); color: var(--danger); }
+    .live-pill .pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 0 currentColor;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      70% { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+      margin-bottom: 1.6rem;
+    }
+    .kpi {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0.95rem 1.05rem;
+      box-shadow: var(--shadow);
+    }
+    .kpi .label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .kpi .value {
+      margin-top: 0.35rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.45rem;
+      font-weight: 600;
+      letter-spacing: -0.04em;
+    }
+    .kpi .hint { color: var(--faint); font-size: 0.75rem; margin-top: 0.15rem; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 0 0 0.8rem;
+    }
+    .section-head h2 {
+      margin: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .section-head a {
+      color: var(--faint);
+      font-size: 0.75rem;
+      text-decoration: none;
+    }
+    .section-head a:hover { color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1rem;
+    }
+    .card, .snmp-card, .empty {
+      background: var(--surface);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card {
+      padding: 1.1rem 1.15rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+    .card.stale { opacity: 0.78; border-color: rgba(251, 191, 36, 0.35); }
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .host {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      min-width: 0;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-top: 0.45rem;
+      flex-shrink: 0;
+    }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+    .dot.danger { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+    .host-name {
+      font-weight: 700;
+      font-size: 1.02rem;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .host-rest { color: var(--muted); font-weight: 500; font-size: 0.82rem; }
+    .host-sub {
+      color: var(--faint);
+      font-size: 0.75rem;
+      margin-top: 0.12rem;
+    }
+    .seen-stack {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.2rem;
+    }
+    .seen {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.22rem 0.55rem;
+    }
+    .uptime-pill {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--faint);
+    }
+    .gauges {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      justify-items: center;
+      gap: 0.25rem;
+    }
+    .gauge {
+      position: relative;
+      width: 104px;
+      height: 104px;
+    }
+    .gauge svg {
+      position: absolute;
+      inset: 0;
+      width: 104px;
+      height: 104px;
+      overflow: visible;
+      transform: rotate(-90deg);
+    }
+    .gauge .track {
+      fill: none;
+      stroke: rgba(255,255,255,0.06);
+      stroke-width: 5.5;
+    }
+    .gauge .arc {
+      fill: none;
+      stroke-width: 5.5;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.6s ease;
+    }
+    .gauge .arc.ok { stroke: var(--ok); }
+    .gauge .arc.warn { stroke: var(--warn); }
+    .gauge .arc.danger { stroke: var(--danger); }
+    .gauge-readout {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .gauge-readout strong {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .gauge-readout span {
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .meta-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    .stat-chip {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.55rem 0.7rem;
+      min-width: 0;
+    }
+    .stat-chip .k {
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .stat-chip .v {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      margin-top: 0.18rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stat-chip .v .down { color: var(--accent); }
+    .stat-chip .v .up { color: var(--ok); }
+    .empty {
+      padding: 2.2rem 1.4rem;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty h3 { margin: 0 0 0.35rem; color: var(--text); }
+    .error {
+      display: none;
+      background: var(--danger-dim);
+      border: 1px solid rgba(251, 113, 133, 0.4);
+      color: var(--danger);
+      padding: 0.7rem 0.9rem;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      font-size: 0.88rem;
+    }
+    .snmp-section { margin-top: 1.75rem; }
+    .snmp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1rem;
+    }
+    .snmp-card {
+      padding: 1.05rem 1.1rem 1rem;
+      min-width: 0;
+    }
+    .snmp-card.stale, .snmp-card.down { opacity: 0.85; }
+    .snmp-card.down { border-color: rgba(251, 113, 133, 0.28); }
+    .snmp-title {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--border);
+      gap: 0.6rem;
+      margin-bottom: 0.25rem;
     }
-    h1 {
-      font-weight: 600;
-      font-size: 1.1rem;
-      margin: 0;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--accent);
-    }
-    .last-update {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-    .grid {
+    .snmp-title .left {
       display: flex;
-      flex-direction: column;
+      align-items: center;
       gap: 0.5rem;
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.5rem 0.85rem;
+      font-weight: 700;
       min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 1.25rem;
-      flex-wrap: wrap;
     }
-    .card.stale { opacity: 0.75; border-color: var(--warn); }
-    .card .name {
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 600;
-      font-size: 0.9rem;
-      min-width: 8rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .card .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .card .dot.ok { background: var(--ok); }
-    .card .dot.warn { background: var(--warn); }
-    .card .dot.danger { background: var(--danger); }
-    .card .stat {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      min-width: 5rem;
-    }
-    .card .stat .label { color: var(--muted); font-size: 0.7rem; width: 2.2rem; }
-    .card .stat .value { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
-    .card .bar-wrap {
-      width: 4rem;
-      height: 6px;
-      background: var(--bg);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .card .bar {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.4s ease;
-    }
-    .card .bar.cpu { background: var(--accent); }
-    .card .bar.mem { background: var(--ok); }
-    .card .bar.disk { background: var(--warn); }
-    .card .bar.ok { background: var(--ok); }
-    .card .bar.warn { background: var(--warn); }
-    .card .bar.danger { background: var(--danger); }
-    .card .stat-net .value { font-size: 0.75rem; white-space: nowrap; }
-    .card .load-up {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-left: auto;
-    }
-    .mono { font-family: 'JetBrains Mono', monospace; }
-    .error {
-      background: rgba(248,81,73,0.15);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-      padding: 0.5rem;
-      border-radius: 6px;
-      margin-bottom: 0.5rem;
-      font-size: 0.8rem;
-    }
-    footer {
-      margin-top: 0.75rem;
-      padding-top: 0.5rem;
-      border-top: 1px solid var(--border);
-      font-size: 0.7rem;
-      color: var(--muted);
-      text-align: center;
-    }
-    .snmp-section { margin-bottom: 1rem; }
-    .snmp-section h2 {
-      font-size: 0.8rem;
-      font-weight: 600;
+    .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      border-radius: 999px;
+      padding: 0.18rem 0.5rem;
+    }
+    .badge.ok { background: var(--ok-dim); color: var(--ok); }
+    .badge.warn { background: var(--warn-dim); color: var(--warn); }
+    .badge.danger { background: var(--danger-dim); color: var(--danger); }
+    .snmp-meta {
       color: var(--muted);
-      margin: 0 0 0.5rem 0;
-      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      margin-bottom: 0.7rem;
+      font-family: 'IBM Plex Mono', monospace;
     }
-    .snmp-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 0.75rem;
-    }
-    .snmp-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem;
-    }
-    .snmp-card.stale { opacity: 0.75; border-color: var(--warn); }
-    .snmp-card .snmp-title {
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 600;
-      font-size: 0.9rem;
-      margin-bottom: 0.35rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .snmp-card .snmp-meta { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.5rem; }
     .snmp-graph {
       width: 100%;
-      height: 56px;
-      background: #1c2128;
-      border-radius: 4px;
-      margin-top: 0.35rem;
+      height: 92px;
       display: block;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid var(--border);
+      border-radius: 12px;
     }
-    .snmp-card .snmp-rate { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
-    .snmp-legend { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; }
-    .snmp-legend .in { color: #58a6ff; }
-    .snmp-legend .out { color: #3fb950; }
-    .snmp-debug { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; font-family: 'JetBrains Mono', monospace; }
+    .snmp-legend {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .snmp-legend .in { color: var(--accent); }
+    .snmp-legend .out { color: var(--ok); }
+    .snmp-legend b { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+    footer {
+      margin-top: 1.8rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--faint);
+      font-size: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    footer a { color: inherit; }
+    footer a:hover { color: var(--accent); }
+    @media (max-width: 820px) {
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+      .grid, .snmp-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .wrap { padding: 1rem 0.85rem 1.8rem; }
+      .gauges { height: auto; }
+      .meta-row { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .live-pill .pulse { animation: none; }
+      .card { transition: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>cloudtop.biapps.dev</h1>
-      <span class="last-update" id="lastUpdate">—</span>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M7 16a5 5 0 0 1 1-9.9A6.5 6.5 0 0 1 20 10.5 4 4 0 0 1 18 18H7z"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Cloudtop</h1>
+          <p>cloudtop.biapps.dev · fleet monitor</p>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span class="live-pill" id="livePill"><span class="pulse"></span> Live</span>
+        <span id="lastUpdate">Waiting for data…</span>
+      </div>
     </header>
-    <div id="error" class="error" style="display: none;"></div>
-    <div id="snmpSection" class="snmp-section" style="display: none;">
-      <h2>SNMP devices <a href="/api/snmp-debug" target="_blank" rel="noopener" style="font-size:0.7rem;color:var(--muted);margin-left:0.5rem;">(debug output)</a></h2>
+
+    <div id="error" class="error"></div>
+
+    <section class="kpis" id="kpis" aria-label="Fleet summary">
+      <article class="kpi"><div class="label">Hosts</div><div class="value" id="kpiHosts">—</div><div class="hint" id="kpiHostsHint">reporting now</div></article>
+      <article class="kpi"><div class="label">Average CPU</div><div class="value" id="kpiCpu">—</div><div class="hint">across live hosts</div></article>
+      <article class="kpi"><div class="label">Peak memory</div><div class="value" id="kpiMem">—</div><div class="hint" id="kpiMemHint">peak used</div></article>
+      <article class="kpi"><div class="label">Network devices</div><div class="value" id="kpiSnmp">—</div><div class="hint" id="kpiSnmpHint">SNMP reachability</div></article>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Hosts</h2>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="snmpSection" class="snmp-section" hidden>
+      <div class="section-head">
+        <h2>Network devices</h2>
+      </div>
       <div class="snmp-grid" id="snmpGrid"></div>
-    </div>
-    <div class="grid" id="grid"></div>
-    <footer>Refreshes every 15s</footer>
+    </section>
+
+    <footer>
+      <span>Refreshes every 15 seconds</span>
+      <a href="/api/snmp-debug" target="_blank" rel="noopener">SNMP debug</a>
+    </footer>
   </div>
   <script>
+    const GAUGE_R = 15.5;
+    const GAUGE_C = 2 * Math.PI * GAUGE_R;
+
     const fmt = {
-      percent: (n) => (n == null ? '—' : n.toFixed(0) + '%'),
-      num: (n) => (n == null ? '—' : Number(n).toFixed(1)),
-      kB_s: (n) => (n == null || n === undefined ? '0.00' : (Number(n) / 1024).toFixed(2)) + ' KB/s',
+      percent: (n) => (n == null ? '—' : Math.round(n) + '%'),
+      num: (n, d = 2) => (n == null ? '—' : Number(n).toFixed(d)),
+      bytes: (n) => {
+        if (n == null || Number.isNaN(Number(n))) return '—';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let v = Number(n);
+        let i = 0;
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+        const digits = v >= 10 || i === 0 ? 0 : 1;
+        return v.toFixed(digits) + ' ' + units[i];
+      },
+      rate: (n) => {
+        if (n == null || Number.isNaN(Number(n))) return '0 B/s';
+        const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+        let v = Math.max(0, Number(n));
+        let i = 0;
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+        return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + ' ' + units[i];
+      },
       uptime: (s) => {
         if (s == null || s < 0) return '—';
         const d = Math.floor(s / 86400);
@@ -215,126 +527,247 @@
         const m = Math.floor((s % 3600) / 60);
         const parts = [];
         if (d) parts.push(d + 'd');
-        if (h) parts.push(h + 'h');
+        if (h || d) parts.push(h + 'h');
         parts.push(m + 'm');
         return parts.join(' ');
       },
+      rel: (ms) => {
+        if (!ms) return 'never';
+        const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+        if (s < 8) return 'just now';
+        if (s < 60) return s + 's ago';
+        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+        return Math.floor(s / 86400) + 'd ago';
+      },
     };
+
     function barClass(pct) {
+      if (pct == null) return 'ok';
       if (pct >= 90) return 'danger';
       if (pct >= 75) return 'warn';
       return 'ok';
     }
+
     function statusDot(server) {
       const age = (Date.now() - server.lastSeen) / 1000;
       if (age > 300) return 'danger';
       if (age > 60) return 'warn';
       return 'ok';
     }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s == null ? '' : String(s);
+      return div.innerHTML;
+    }
+
+    function splitName(name) {
+      const i = String(name).indexOf('.');
+      if (i <= 0) return { head: name, rest: '' };
+      return { head: name.slice(0, i), rest: name.slice(i) };
+    }
+
+    function gauge(pct, label) {
+      const p = pct == null ? 0 : Math.min(100, Math.max(0, pct));
+      const offset = GAUGE_C * (1 - p / 100);
+      return `
+        <div class="gauge">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <circle class="track" cx="20" cy="20" r="${GAUGE_R}"></circle>
+            <circle class="arc ${barClass(pct)}" cx="20" cy="20" r="${GAUGE_R}"
+              stroke-dasharray="${GAUGE_C.toFixed(2)}"
+              stroke-dashoffset="${pct == null ? GAUGE_C.toFixed(2) : offset.toFixed(2)}"></circle>
+          </svg>
+          <div class="gauge-readout">
+            <strong>${fmt.percent(pct)}</strong>
+            <span>${label}</span>
+          </div>
+        </div>`;
+    }
+
+    function renderKpis(servers, devices) {
+      const live = servers.filter((s) => !s.stale);
+      const warn = servers.filter((s) => statusDot(s) !== 'ok').length;
+      const cpuVals = live.map((s) => s.stats && s.stats.cpu && s.stats.cpu.usagePercent).filter((n) => typeof n === 'number');
+      const memRanked = live
+        .map((s) => ({ name: s.name, pct: s.stats && s.stats.memory && s.stats.memory.usedPercent }))
+        .filter((x) => typeof x.pct === 'number')
+        .sort((a, b) => b.pct - a.pct);
+      const snmpUp = (devices || []).filter((d) => d.up && !d.stale).length;
+      const snmpTotal = (devices || []).length;
+
+      document.getElementById('kpiHosts').textContent = servers.length ? String(live.length) : '0';
+      document.getElementById('kpiHostsHint').textContent = servers.length
+        ? (warn ? warn + ' need attention' : servers.length + ' reporting')
+        : 'no reports yet';
+      document.getElementById('kpiCpu').textContent = cpuVals.length
+        ? fmt.percent(cpuVals.reduce((a, b) => a + b, 0) / cpuVals.length)
+        : '—';
+      document.getElementById('kpiMem').textContent = memRanked[0] ? fmt.percent(memRanked[0].pct) : '—';
+      document.getElementById('kpiMemHint').textContent = memRanked[0] ? splitName(memRanked[0].name).head : 'peak used';
+      document.getElementById('kpiSnmp').textContent = snmpTotal ? snmpUp + '/' + snmpTotal : '0';
+      document.getElementById('kpiSnmpHint').textContent = snmpTotal ? 'reachable now' : 'none configured';
+    }
+
+    function setLiveState(ok, warn) {
+      const pill = document.getElementById('livePill');
+      pill.classList.remove('warn', 'danger');
+      if (!ok) {
+        pill.classList.add('danger');
+        pill.innerHTML = '<span class="pulse"></span> Offline';
+        return;
+      }
+      if (warn) pill.classList.add('warn');
+      pill.innerHTML = '<span class="pulse"></span> Live';
+    }
+
     function render(servers) {
       const g = document.getElementById('grid');
+      window.__servers = servers;
+      renderKpis(servers, window.__devices || []);
       if (!servers.length) {
-        g.innerHTML = '<p class="muted" style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.85rem;">No servers reporting yet. Run the agent on each host or set LOCAL_SERVER_NAME here.</p>';
+        g.innerHTML = '<div class="empty"><h3>No hosts reporting yet</h3><p>Run the agent on each host, or set LOCAL_SERVER_NAME on this dashboard.</p></div>';
         document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        setLiveState(true, false);
         return;
       }
       g.innerHTML = servers.map((s) => {
         const st = s.stats || {};
-        const cpu = st.cpu;
-        const mem = st.memory;
-        const disk = st.disk;
+        const cpu = st.cpu || {};
+        const mem = st.memory || {};
+        const disk = st.disk || {};
         const load = st.load;
         const uptime = st.uptime;
         const net = st.network;
-        const cpuPct = cpu && typeof cpu.usagePercent === 'number' ? cpu.usagePercent : null;
-        const memPct = mem && typeof mem.usedPercent === 'number' ? mem.usedPercent : null;
-        const diskPct = disk && typeof disk.usedPercent === 'number' ? disk.usedPercent : null;
+        const cpuPct = typeof cpu.usagePercent === 'number' ? cpu.usagePercent : null;
+        const memPct = typeof mem.usedPercent === 'number' ? mem.usedPercent : null;
+        const diskPct = typeof disk.usedPercent === 'number' ? disk.usedPercent : null;
+        const names = splitName(s.name);
+        const cores = cpu.cores ? cpu.cores + ' cores' : '';
+        const brand = cpu.brand ? cpu.brand.replace(/\s+/g, ' ') : '';
+        const sub = [brand, cores].filter(Boolean).join(' · ') || 'Host metrics';
         const dot = statusDot(s);
         return `
-          <div class="card ${s.stale ? 'stale' : ''}" title="Last seen: ${new Date(s.lastSeen).toLocaleString()}">
-            <div class="name"><span class="dot ${dot}"></span>${escapeHtml(s.name)}</div>
-            <div class="stat">
-              <span class="label">CPU</span>
-              <div class="bar-wrap"><div class="bar cpu ${barClass(cpuPct)}" style="width:${Math.min(100, cpuPct || 0)}%"></div></div>
-              <span class="value">${fmt.percent(cpuPct)}</span>
+          <article class="card ${s.stale ? 'stale' : ''}" title="Last seen: ${new Date(s.lastSeen).toLocaleString()}">
+            <div class="card-head">
+              <div class="host">
+                <span class="dot ${dot}"></span>
+                <div>
+                  <div class="host-name">${escapeHtml(names.head)}<span class="host-rest">${escapeHtml(names.rest)}</span></div>
+                  <div class="host-sub">${escapeHtml(sub)}</div>
+                </div>
+              </div>
+              <div class="seen-stack">
+                <span class="seen">${escapeHtml(fmt.rel(s.lastSeen))}</span>
+                <span class="uptime-pill">up ${uptime ? fmt.uptime(uptime.seconds) : '—'}</span>
+              </div>
             </div>
-            <div class="stat">
-              <span class="label">Mem</span>
-              <div class="bar-wrap"><div class="bar mem ${barClass(memPct)}" style="width:${Math.min(100, memPct || 0)}%"></div></div>
-              <span class="value">${fmt.percent(memPct)}</span>
+            <div class="gauges">
+              ${gauge(cpuPct, 'CPU')}
+              ${gauge(memPct, 'Mem')}
+              ${gauge(diskPct, 'Disk')}
             </div>
-            <div class="stat">
-              <span class="label">Disk</span>
-              <div class="bar-wrap"><div class="bar disk ${barClass(diskPct)}" style="width:${Math.min(100, diskPct || 0)}%"></div></div>
-              <span class="value">${fmt.percent(diskPct)}</span>
+            <div class="meta-row">
+              <div class="stat-chip">
+                <div class="k">Network</div>
+                <div class="v"><span class="down">↓ ${fmt.rate(net && net.rx_sec)}</span> · <span class="up">↑ ${fmt.rate(net && net.tx_sec)}</span></div>
+              </div>
+              <div class="stat-chip">
+                <div class="k">Load</div>
+                <div class="v">${load ? fmt.num(load.load1, 2) + '  ' + fmt.num(load.load5, 2) + '  ' + fmt.num(load.load15, 2) : '—'}</div>
+              </div>
+              <div class="stat-chip">
+                <div class="k">Memory</div>
+                <div class="v">${fmt.bytes(mem.used)} / ${fmt.bytes(mem.total)}</div>
+              </div>
+              <div class="stat-chip">
+                <div class="k">Disk</div>
+                <div class="v">${fmt.bytes(disk.used)} / ${fmt.bytes(disk.total)}</div>
+              </div>
             </div>
-            <div class="stat stat-net">
-              <span class="label">Net</span>
-              <span class="value">↓ ${fmt.kB_s(net && net.rx_sec)} ↑ ${fmt.kB_s(net && net.tx_sec)}</span>
-            </div>
-            <div class="load-up">Load ${load ? fmt.num(load.load1) + ' ' + fmt.num(load.load5) + ' ' + fmt.num(load.load15) : '—'} · Up ${uptime ? fmt.uptime(uptime.seconds) : '—'}</div>
-          </div>
+          </article>
         `;
       }).join('');
-      document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' · ' + servers.length + ' server(s)';
+      const warn = servers.some((s) => statusDot(s) !== 'ok' || s.stale);
+      document.getElementById('lastUpdate').textContent =
+        'Updated ' + new Date().toLocaleTimeString() + ' · ' + servers.length + ' host' + (servers.length === 1 ? '' : 's');
+      setLiveState(true, warn);
     }
-    function escapeHtml(s) {
-      const div = document.createElement('div');
-      div.textContent = s;
-      return div.innerHTML;
-    }
-    function snmpSparkline(historyIn, historyOut, w, h) {
-      const pad = 6;
-      const strokeIn = '#58a6ff';
-      const strokeOut = '#3fb950';
+
+    function snmpSparkline(historyIn, historyOut, w, h, gid) {
+      const pad = { l: 6, r: 6, t: 10, b: 10 };
+      const strokeIn = '#22d3ee';
+      const strokeOut = '#4ade80';
+      const vals = []
+        .concat((historyIn || []).map((p) => p.v), (historyOut || []).map((p) => p.v))
+        .filter((v) => typeof v === 'number');
+      const minV = vals.length ? Math.min.apply(null, vals) : 0;
+      const maxV = vals.length ? Math.max.apply(null, vals) : 1;
+      const range = maxV - minV || 1;
+      const innerW = w - pad.l - pad.r;
+      const innerH = h - pad.t - pad.b;
       function toPoints(arr) {
-        if (!arr || arr.length === 0) return '';
-        const vals = arr.map(function(p) { return p.v; });
-        const minV = Math.min.apply(null, vals);
-        const maxV = Math.max.apply(null, vals);
-        const range = maxV - minV || 1;
+        if (!arr || !arr.length) return '';
         const n = arr.length;
-        const toY = function(v) { return h - pad - ((v - minV) / range) * (h - 2 * pad); };
-        if (n === 1) return pad + ',' + toY(arr[0].v) + ' ' + (w - pad) + ',' + toY(arr[0].v);
-        const xScale = (w - 2 * pad) / (n - 1);
-        return arr.map(function(p, i) { return (pad + i * xScale) + ',' + toY(p.v); }).join(' ');
+        const xScale = n === 1 ? 0 : innerW / (n - 1);
+        const toY = (v) => pad.t + innerH - ((v - minV) / range) * innerH;
+        if (n === 1) return (pad.l) + ',' + toY(arr[0].v) + ' ' + (w - pad.r) + ',' + toY(arr[0].v);
+        return arr.map((p, i) => (pad.l + i * xScale) + ',' + toY(p.v)).join(' ');
+      }
+      function area(arr) {
+        const pts = toPoints(arr);
+        if (!pts) return '';
+        return pts + ' ' + (w - pad.r) + ',' + (h - pad.b) + ' ' + pad.l + ',' + (h - pad.b);
       }
       const ptsIn = toPoints(historyIn);
       const ptsOut = toPoints(historyOut);
-      var body = '';
-      if (ptsIn) body += '<polyline fill="none" stroke="' + strokeIn + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="' + ptsIn + '"/>';
-      if (ptsOut) body += '<polyline fill="none" stroke="' + strokeOut + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6,4" points="' + ptsOut + '"/>';
-      if (!body) body = '<line x1="' + pad + '" y1="' + (h/2) + '" x2="' + (w-pad) + '" y2="' + (h/2) + '" stroke="#8b949e" stroke-width="2"/>';
+      const gin = 'gin-' + gid;
+      const gout = 'gout-' + gid;
+      let body = '<defs>' +
+        '<linearGradient id="' + gin + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.28"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>' +
+        '<linearGradient id="' + gout + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80" stop-opacity="0.22"/><stop offset="100%" stop-color="#4ade80" stop-opacity="0"/></linearGradient>' +
+        '</defs>';
+      body += '<line x1="' + pad.l + '" y1="' + (h / 2) + '" x2="' + (w - pad.r) + '" y2="' + (h / 2) + '" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 5"/>';
+      if (ptsIn) {
+        body += '<polygon fill="url(#' + gin + ')" points="' + area(historyIn) + '"/>';
+        body += '<polyline fill="none" stroke="' + strokeIn + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + ptsIn + '"/>';
+      }
+      if (ptsOut) {
+        body += '<polyline fill="none" stroke="' + strokeOut + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="' + ptsOut + '"/>';
+      }
+      if (!ptsIn && !ptsOut) {
+        body += '<line x1="' + pad.l + '" y1="' + (h / 2) + '" x2="' + (w - pad.r) + '" y2="' + (h / 2) + '" stroke="#5c6478" stroke-width="1.5"/>';
+      }
       return '<svg class="snmp-graph" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' + body + '</svg>';
     }
+
     function renderSnmp(devices) {
       const section = document.getElementById('snmpSection');
       const g = document.getElementById('snmpGrid');
-      if (!devices || !devices.length) { section.style.display = 'none'; return; }
-      section.style.display = 'block';
+      window.__devices = devices || [];
+      renderKpis(window.__servers || [], window.__devices);
+      if (!devices || !devices.length) {
+        section.hidden = true;
+        return;
+      }
+      section.hidden = false;
       g.innerHTML = devices.map((d) => {
-        const dot = d.stale ? 'danger' : (d.up ? 'ok' : 'warn');
+        const badgeCls = d.stale || !d.up ? 'danger' : 'ok';
+        const badgeText = d.stale ? 'Stale' : (d.up ? 'Reachable' : 'Down');
         const uptimeStr = d.sysUpTime != null ? fmt.uptime(d.sysUpTime) : '—';
-        const inK = (d.inRate || 0) / 1024;
-        const outK = (d.outRate || 0) / 1024;
-        const hi = d.historyIn || [];
-        const ho = d.historyOut || [];
-        const graph = snmpSparkline(hi, ho, 280, 56);
-        const lastIn = hi.length ? hi[hi.length - 1].v : null;
-        const lastOut = ho.length ? ho[ho.length - 1].v : null;
-        const debugStr = 'Points: ' + hi.length + ' in, ' + ho.length + ' out' +
-          (lastIn != null ? ' · last ↓' + lastIn : '') +
-          (lastOut != null ? ' ↑' + lastOut : '');
-        return '<div class="snmp-card ' + (d.stale ? 'stale' : '') + '" title="' + escapeHtml(d.host + ':' + d.port) + '">' +
-          '<div class="snmp-title"><span class="dot ' + dot + '"></span>' + escapeHtml(d.name) + '</div>' +
-          '<div class="snmp-meta">' + escapeHtml(d.host) + ' · Up ' + uptimeStr + '</div>' +
+        const graph = snmpSparkline(d.historyIn || [], d.historyOut || [], 640, 92, escapeHtml(d.name).replace(/\W+/g, ''));
+        return '<article class="snmp-card ' + (d.stale ? 'stale ' : '') + (d.up ? '' : 'down') + '" title="' + escapeHtml((d.host || '') + ':' + (d.port || '')) + '">' +
+          '<div class="snmp-title"><div class="left"><span class="dot ' + badgeCls + '"></span>' + escapeHtml(d.name) + '</div>' +
+          '<span class="badge ' + badgeCls + '">' + badgeText + '</span></div>' +
+          '<div class="snmp-meta">' + escapeHtml(d.host || '') + ' · uptime ' + uptimeStr + '</div>' +
           graph +
-          '<div class="snmp-legend"><span class="in">↓ In</span> <span class="out">↑ Out (dashed)</span></div>' +
-          '<div class="snmp-debug">' + escapeHtml(debugStr) + '</div>' +
-          '<div class="snmp-rate">↓ ' + inK.toFixed(2) + ' KB/s · ↑ ' + outK.toFixed(2) + ' KB/s</div>' +
-          '</div>';
+          '<div class="snmp-legend"><span class="in">In <b>' + fmt.rate(d.inRate) + '</b></span>' +
+          '<span class="out">Out <b>' + fmt.rate(d.outRate) + '</b></span></div>' +
+          '</article>';
       }).join('');
     }
+
     async function fetchSnmpDevices() {
       try {
         const r = await fetch('/api/snmp-devices');
@@ -344,6 +777,7 @@
         }
       } catch (_) {}
     }
+
     async function fetchServers() {
       const errEl = document.getElementById('error');
       try {
@@ -356,10 +790,12 @@
         errEl.style.display = 'none';
         render(data.servers || []);
       } catch (e) {
-        errEl.textContent = 'Could not load servers: ' + e.message;
+        errEl.textContent = 'Could not load hosts: ' + e.message;
         errEl.style.display = 'block';
+        setLiveState(false, false);
       }
     }
+
     fetchServers();
     fetchSnmpDevices();
     setInterval(fetchServers, 15000);

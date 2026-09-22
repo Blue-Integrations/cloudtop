@@ -203,10 +203,11 @@ function parseSnmpTargets(envVal) {
   if (!envVal || typeof envVal !== 'string') return [];
   return envVal.split(',').map((s) => {
     const parts = s.trim().split(':');
-    // name:host:port:community or name:host:port:community:ifindex (ifindex = interface, default 1 = first)
-    if (parts.length >= 5) return { name: parts[0], host: parts[1], port: parts[2], community: parts[3], ifIndex: parseInt(parts[4], 10) || 1 };
-    if (parts.length === 4) return { name: parts[0], host: parts[1], port: parts[2], community: parts[3], ifIndex: 1 };
-    if (parts.length === 3) return { name: parts[0], host: parts[0], port: parts[1], community: parts[2], ifIndex: 1 };
+    // name:host:port:community[:ifindex][:use32]  use32 = prefer 32-bit counters (helps when 64-bit is cached, e.g. FreeBSD)
+    const use32 = parts.length >= 6 && /^(1|true|yes|use32)$/i.test(String(parts[5]).trim());
+    if (parts.length >= 5) return { name: parts[0], host: parts[1], port: parts[2], community: parts[3], ifIndex: parseInt(parts[4], 10) || 1, use32 };
+    if (parts.length === 4) return { name: parts[0], host: parts[1], port: parts[2], community: parts[3], ifIndex: 1, use32: false };
+    if (parts.length === 3) return { name: parts[0], host: parts[0], port: parts[1], community: parts[2], ifIndex: 1, use32: false };
     return null;
   }).filter(Boolean);
 }
@@ -216,7 +217,7 @@ function oidWithIndex(base, ifIndex) {
 }
 
 const snmpTargets = parseSnmpTargets(process.env.SNMP_TARGETS);
-const snmpDeviceData = new Map(); // name -> { lastSeen, up, sysUpTime, historyIn, historyOut, inRate, outRate }
+const snmpDeviceData = new Map(); // name -> { lastSeen, up, sysUpTime, historyIn, historyOut, inRate, outRate, lastSample1, lastSample2 }
 
 // Traffic OIDs (append .<ifIndex>). We use 64-bit first, fallback to 32-bit.
 // In:  1.3.6.1.2.1.31.1.1.1.6.<i>  (ifHCInOctets)  or  1.3.6.1.2.1.2.2.1.10.<i>  (ifInOctets)
@@ -248,47 +249,59 @@ async function snmpGet(host, port, community, oid) {
   }
 }
 
+const SNMP_SAMPLE_INTERVAL_MS = 10000; // 10s between two samples to compute rate (works when 60s counter doesn't move, e.g. FreeBSD)
+
+function counterDelta(b, a) {
+  if (b >= a) return b - a;
+  if (a <= 0xffffffff && b <= 0xffffffff) return (b - a + 0x100000000) >>> 0;
+  return b - a; // 64-bit wrap: assume no wrap over 10s
+}
+
 async function pollSnmpDevice(target) {
-  const { name, host, port, community, ifIndex = 1 } = target;
+  const { name, host, port, community, ifIndex = 1, use32 = false } = target;
   const prev = snmpDeviceData.get(name) || { historyIn: [], historyOut: [], inRate: 0, outRate: 0 };
   const sysUpTime = await snmpGet(host, port, community, SNMP_OID_BASES.sysUpTime);
   const oidInH = oidWithIndex(SNMP_OID_BASES.ifHCInOctets, ifIndex);
   const oidOutH = oidWithIndex(SNMP_OID_BASES.ifHCOutOctets, ifIndex);
   const oidIn = oidWithIndex(SNMP_OID_BASES.ifInOctets, ifIndex);
   const oidOut = oidWithIndex(SNMP_OID_BASES.ifOutOctets, ifIndex);
-  let inOctets = await snmpGet(host, port, community, oidInH);
-  if (inOctets == null) inOctets = await snmpGet(host, port, community, oidIn);
-  let outOctets = await snmpGet(host, port, community, oidOutH);
-  if (outOctets == null) outOctets = await snmpGet(host, port, community, oidOut);
+
+  const getInOut = async () => {
+    let inO, outO;
+    if (use32) {
+      inO = await snmpGet(host, port, community, oidIn);
+      outO = await snmpGet(host, port, community, oidOut);
+    } else {
+      inO = await snmpGet(host, port, community, oidInH);
+      if (inO == null) inO = await snmpGet(host, port, community, oidIn);
+      outO = await snmpGet(host, port, community, oidOutH);
+      if (outO == null) outO = await snmpGet(host, port, community, oidOut);
+    }
+    return { inO, outO };
+  };
+
+  const sample1 = await getInOut();
+  await new Promise((r) => setTimeout(r, SNMP_SAMPLE_INTERVAL_MS));
+  const sample2 = await getInOut();
+  const intervalSec = SNMP_SAMPLE_INTERVAL_MS / 1000;
+
+  let inRate = 0;
+  let outRate = 0;
+  if (sample1.inO != null && sample2.inO != null) {
+    inRate = counterDelta(sample2.inO, sample1.inO) / intervalSec;
+  }
+  if (sample1.outO != null && sample2.outO != null) {
+    outRate = counterDelta(sample2.outO, sample1.outO) / intervalSec;
+  }
 
   const now = Date.now();
   const up = sysUpTime != null;
   const historyIn = [...(prev.historyIn || [])];
   const historyOut = [...(prev.historyOut || [])];
-  if (inOctets != null) {
-    historyIn.push({ t: now, v: inOctets });
-    if (historyIn.length > SNMP_HISTORY_LEN) historyIn.shift();
-  }
-  if (outOctets != null) {
-    historyOut.push({ t: now, v: outOctets });
-    if (historyOut.length > SNMP_HISTORY_LEN) historyOut.shift();
-  }
-
-  let inRate = 0;
-  let outRate = 0;
-  const delta = (b, a) => (b >= a ? b - a : b - a + 0x100000000); // 32-bit wrap
-  if (historyIn.length >= 2) {
-    const a = historyIn[historyIn.length - 2];
-    const b = historyIn[historyIn.length - 1];
-    const sec = (b.t - a.t) / 1000;
-    inRate = sec > 0 ? delta(b.v, a.v) / sec : 0;
-  }
-  if (historyOut.length >= 2) {
-    const a = historyOut[historyOut.length - 2];
-    const b = historyOut[historyOut.length - 1];
-    const sec = (b.t - a.t) / 1000;
-    outRate = sec > 0 ? delta(b.v, a.v) / sec : 0;
-  }
+  historyIn.push({ t: now, v: inRate });
+  if (historyIn.length > SNMP_HISTORY_LEN) historyIn.shift();
+  historyOut.push({ t: now, v: outRate });
+  if (historyOut.length > SNMP_HISTORY_LEN) historyOut.shift();
 
   snmpDeviceData.set(name, {
     lastSeen: now,
@@ -298,6 +311,8 @@ async function pollSnmpDevice(target) {
     historyOut,
     inRate,
     outRate,
+    lastSample1: sample1,
+    lastSample2: sample2,
   });
 }
 
@@ -398,7 +413,7 @@ app.get('/api/snmp-debug', async (_req, res) => {
   const lines = [];
   for (const t of snmpTargets) {
     const d = snmpDeviceData.get(t.name);
-    lines.push('--- ' + t.name + ' (' + t.host + ':' + t.port + ' ifIndex=' + (t.ifIndex || 1) + ') ---');
+    lines.push('--- ' + t.name + ' (' + t.host + ':' + t.port + ' ifIndex=' + (t.ifIndex || 1) + (t.use32 ? ' use32' : '') + ') ---');
     if (!d) {
       lines.push('  No data yet (poll may have failed or not run).');
     } else {
@@ -406,20 +421,23 @@ app.get('/api/snmp-debug', async (_req, res) => {
       const nout = (d.historyOut && d.historyOut.length) || 0;
       lines.push('  lastSeen: ' + new Date(d.lastSeen).toISOString());
       lines.push('  up: ' + d.up + ', sysUpTime: ' + d.sysUpTime);
-      lines.push('  historyIn: ' + nin + ' points, historyOut: ' + nout + ' points');
+      lines.push('  historyIn: ' + nin + ' points, historyOut: ' + nout + ' points (each point = rate B/s from 10s sample)');
       lines.push('  inRate: ' + d.inRate + ' B/s, outRate: ' + d.outRate + ' B/s');
+      if (d.lastSample1 && d.lastSample2) {
+        const s1 = d.lastSample1, s2 = d.lastSample2;
+        lines.push('  10s sample in:  ' + (s1.inO != null ? s1.inO : 'null') + ' -> ' + (s2.inO != null ? s2.inO : 'null'));
+        lines.push('  10s sample out: ' + (s1.outO != null ? s1.outO : 'null') + ' -> ' + (s2.outO != null ? s2.outO : 'null'));
+        if (s1.inO != null && s2.inO != null && s1.inO === s2.inO && s1.outO != null && s2.outO != null && s1.outO === s2.outO) {
+          lines.push('  -> Counter unchanged in 10s. Try adding :use32 to this target (32-bit counters), or another ifIndex.');
+        }
+      }
       if (nin >= 1) {
         const last = d.historyIn[d.historyIn.length - 1];
-        lines.push('  last in value: ' + last.v + ' at ' + new Date(last.t).toISOString());
+        lines.push('  last in rate: ' + last.v + ' B/s at ' + new Date(last.t).toISOString());
       }
       if (nout >= 1) {
         const last = d.historyOut[d.historyOut.length - 1];
-        lines.push('  last out value: ' + last.v + ' at ' + new Date(last.t).toISOString());
-      }
-      if (nin >= 2) {
-        const a = d.historyIn[d.historyIn.length - 2];
-        const b = d.historyIn[d.historyIn.length - 1];
-        lines.push('  in delta (last 2): ' + (b.v - a.v) + ' bytes in ' + ((b.t - a.t) / 1000) + ' s');
+        lines.push('  last out rate: ' + last.v + ' B/s at ' + new Date(last.t).toISOString());
       }
     }
     lines.push('  Live snmpget from this host (right now):');
