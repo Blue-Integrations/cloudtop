@@ -12,6 +12,6 @@
   },
   "dependencies": {
     "express": "^4.21.0",
-    "systeminformation": "^5.33.15"
+    "systeminformation": "^5.33.16"
   }
 }
