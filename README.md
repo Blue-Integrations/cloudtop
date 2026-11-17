@@ -43,6 +43,12 @@ SERVER_NAME=web-01 DASHBOARD_URL=https://cloudtop.biapps.dev/api/report python3 
 
 If the dashboard uses basic auth, set `DASHBOARD_USER` and `DASHBOARD_PASS` when running the agent.
 
+## Checks
+
+Run `npm ci` to install the locked dependencies, then `npm run check` to check JavaScript syntax and run the HTTP tests. The tests bind an ephemeral loopback port and exercise authentication, report handling, dashboard serving, stats, and unconfigured SNMP routes. Run `python3 -m py_compile agent.py` to check Python syntax.
+
+GitHub Actions runs these checks on pushes and pull requests across Node 18, 20, 22, and 24. The tests do not cover real SNMP devices or a deployed reverse proxy.
+
 ## Production (cloudtop.biapps.dev)
 
 1. **Reverse proxy** – Proxy `https://cloudtop.biapps.dev` to `http://127.0.0.1:3000` with HTTPS (e.g. Let’s Encrypt).

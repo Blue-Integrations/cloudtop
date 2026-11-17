@@ -68,7 +68,7 @@ const serverStats = new Map();
 const STALE_MS = 10 * 60 * 1000; // consider stale after 10 min
 
 function normalizeReport(body) {
-  const name = typeof body.name === 'string' ? body.name.trim() : null;
+  const name = body && typeof body.name === 'string' ? body.name.trim() : null;
   if (!name) return null;
   return {
     name,
@@ -461,7 +461,7 @@ app.get('/api/snmp-debug', async (_req, res) => {
 
 const LOCAL_SERVER_NAME = process.env.LOCAL_SERVER_NAME || '';
 
-app.listen(PORT, '0.0.0.0', () => {
+if (require.main === module) app.listen(PORT, '0.0.0.0', () => {
   console.log(`Cloudtop monitor listening on 0.0.0.0:${PORT}`);
   if (AUTH_USER) console.log('Basic auth enabled');
   if (LOCAL_SERVER_NAME) {
@@ -482,3 +482,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`SNMP targets: ${snmpTargets.length} (poll every ${SNMP_POLL_INTERVAL_MS / 1000}s)`);
   }
 });
+
+module.exports = app;

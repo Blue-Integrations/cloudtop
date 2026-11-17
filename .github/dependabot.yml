@@ -1,14 +1,15 @@
 version: 2
 
 updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Winnipeg"
-    open-pull-requests-limit: 5
     groups:
       npm-minor-and-patch:
         patterns:
@@ -21,10 +22,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:15"
-      timezone: "America/Winnipeg"
-    open-pull-requests-limit: 5
     groups:
       pip-minor-and-patch:
         patterns:
